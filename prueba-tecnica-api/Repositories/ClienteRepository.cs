@@ -18,6 +18,7 @@ public class ClienteRepository : IClienteRepository
     {
         return await _context.Clientes
             .AsNoTracking()
+            .OrderBy(c => c.Nombre)
             .ToListAsync(cancellationToken);
     }
 
@@ -25,14 +26,12 @@ public class ClienteRepository : IClienteRepository
     {
         return await _context.Clientes
             .AsNoTracking()
-            .OrderBy(c => c.Nombre)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
     }
 
     public async Task<Cliente?> ObtenerPorIdAsync(int id, CancellationToken cancellationToken = default)
     {
         return await _context.Clientes
-            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
     }
 

@@ -1,27 +1,27 @@
-using Microsoft.EntityFrameworkCore;
-using PruebaTecnica.Api.Data;
-using PruebaTecnica.Api.Data.Interceptors;
-using PruebaTecnica.Api.Services;
-using PruebaTecnica.Api.Services.Interfaces;
-using PruebaTecnica.Api.Settings;
+using PruebaTecnica.Api.Exceptions;
+using PruebaTecnica.Api.Extensions;
+using PruebaTecnica.Api.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<IUsuarioActualService, UsuarioActualService>();
-builder.Services.AddScoped<AuditoriaInterceptor>();
-builder.Services.Configure<PolizaSettings>(builder.Configuration.GetSection(PolizaSettings.Seccion));
-builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
+builder.Services.AddOpenApi(options =>
 {
-    string connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ??
-                              throw new InvalidOperationException(
-                                  "La cadena de conexión 'DefaultConnection' no está configurada.");
-    options.UseSqlServer(connectionString)
-        .AddInterceptors(serviceProvider.GetRequiredService<AuditoriaInterceptor>());
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Info.Title = "Seguros LAFISE S.A. - API de Emisión de Pólizas";
+        document.Info.Version = "v1";
+        document.Info.Description = "Prototipo funcional para emisión, consulta e historial de pólizas de automóviles.";
+        return Task.CompletedTask;
+    });
 });
+
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+builder.Services.AddInfrastructureServices(builder.Configuration);
+builder.Services.AddApplicationServices(builder.Configuration);
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -33,10 +33,10 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseExceptionHandler();
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
