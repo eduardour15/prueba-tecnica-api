@@ -1,6 +1,0 @@
-@prueba_tecnica_api_HostAddress = http://localhost:5277
-
-GET {{prueba_tecnica_api_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
