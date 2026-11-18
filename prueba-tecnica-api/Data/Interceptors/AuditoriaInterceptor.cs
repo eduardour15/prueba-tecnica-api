@@ -31,8 +31,8 @@ public class AuditoriaInterceptor : SaveChangesInterceptor
     private void AplicarAuditoria(DbContext? context)
     {
         if (context is null) return;
-        var ahoraUtc = DateTime.UtcNow;
-        var usuario = _usuarioActualService.ObtenerUsuarioActual();
+        DateTime ahoraUtc = DateTime.UtcNow;
+        string usuario = _usuarioActualService.ObtenerUsuarioActual();
         foreach (var entry in context.ChangeTracker.Entries<EntidadAuditable>())
             if (entry.State == EntityState.Added)
             {

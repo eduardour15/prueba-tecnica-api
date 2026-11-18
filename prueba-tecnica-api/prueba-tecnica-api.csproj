@@ -1,10 +1,11 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>PruebaTecnica.Api</RootNamespace>
+    <UserSecretsId>54909580-bc28-4647-a2af-301713acab95</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

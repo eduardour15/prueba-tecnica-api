@@ -4,7 +4,6 @@ namespace PruebaTecnica.Api.Services;
 
 public class UsuarioActualService : IUsuarioActualService
 {
-    private const string HeaderEjecutivo = "X-Ejecutivo-Id";
     private const string HeaderCorrelationId = "X-Correlation-Id";
     private readonly IHttpContextAccessor _httpContextAccessor;
 
@@ -18,13 +17,18 @@ public class UsuarioActualService : IUsuarioActualService
         return "EjecutivoDemo";
     }
 
-    public string? OptenerIpOrigen()
+    public string? ObtenerIpOrigen()
     {
         return _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
     }
 
     public string ObtenerCorrelationId()
     {
-        return Guid.NewGuid().ToString("N");
+        HttpContext? context = _httpContextAccessor.HttpContext;
+        if (context?.Items.TryGetValue(HeaderCorrelationId, out var valor) == true
+            && valor is string correlationId)
+            return correlationId;
+
+        return context?.TraceIdentifier ?? Guid.NewGuid().ToString("N");
     }
 }

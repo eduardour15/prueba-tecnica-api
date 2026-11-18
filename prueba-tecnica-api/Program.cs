@@ -1,6 +1,9 @@
+using Microsoft.EntityFrameworkCore;
+using PruebaTecnica.Api.Data;
 using PruebaTecnica.Api.Data.Interceptors;
 using PruebaTecnica.Api.Services;
 using PruebaTecnica.Api.Services.Interfaces;
+using PruebaTecnica.Api.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,7 +13,15 @@ builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IUsuarioActualService, UsuarioActualService>();
 builder.Services.AddScoped<AuditoriaInterceptor>();
-
+builder.Services.Configure<PolizaSettings>(builder.Configuration.GetSection(PolizaSettings.Seccion));
+builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
+{
+    string connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ??
+                              throw new InvalidOperationException(
+                                  "La cadena de conexión 'DefaultConnection' no está configurada.");
+    options.UseSqlServer(connectionString)
+        .AddInterceptors(serviceProvider.GetRequiredService<AuditoriaInterceptor>());
+});
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())

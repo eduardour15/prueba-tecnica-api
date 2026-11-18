@@ -3,6 +3,6 @@
 public interface IUsuarioActualService
 {
     string ObtenerUsuarioActual();
-    string? OptenerIpOrigen();
+    string? ObtenerIpOrigen();
     string ObtenerCorrelationId();
 }
