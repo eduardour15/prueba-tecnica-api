@@ -22,6 +22,8 @@ namespace PruebaTecnica.Api.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.HasSequence("SeqNumeroPoliza");
+
             modelBuilder.Entity("PruebaTecnica.Api.Entities.BitacoraAuditoria", b =>
                 {
                     b.Property<long>("Id")
@@ -217,6 +219,7 @@ namespace PruebaTecnica.Api.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<bool>("Activa")
+                        .IsConcurrencyToken()
                         .HasColumnType("bit");
 
                     b.Property<int>("ClienteId")
@@ -330,6 +333,13 @@ namespace PruebaTecnica.Api.Migrations
                         .HasMaxLength(15)
                         .HasColumnType("nvarchar(15)");
 
+                    b.Property<string>("PlacaCanonica")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)")
+                        .HasComputedColumnSql("CAST(REPLACE([Placa], N'-', N'') AS nvarchar(15))", true);
+
                     b.Property<decimal>("ValorComercial")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -337,6 +347,9 @@ namespace PruebaTecnica.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Placa")
+                        .IsUnique();
+
+                    b.HasIndex("PlacaCanonica")
                         .IsUnique();
 
                     b.ToTable("Vehiculos", (string)null);

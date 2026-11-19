@@ -1,6 +1,10 @@
+using System.Data;
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using PruebaTecnica.Api.Data;
 using PruebaTecnica.Api.Entities;
+using PruebaTecnica.Api.Helpers;
 using PruebaTecnica.Api.Repositories.Interfaces;
 
 namespace PruebaTecnica.Api.Repositories;
@@ -43,37 +47,41 @@ public class PolizaRepository : IPolizaRepository
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
     }
 
-    public Task<bool> ExistePolizaActivaPorClienteYPlacaAsync(int clienteId, string placaNormalizada,
+    public Task<int?> ObtenerClienteIdDePolizaActivaPorPlacaAsync(string placaNormalizada,
         CancellationToken cancellationToken = default)
     {
+        string placaCanonica = TextoValidacionHelper.NormalizarPlacaCanonica(placaNormalizada);
         return _context.Polizas
             .AsNoTracking()
-            .AnyAsync(
-                p => p.ClienteId == clienteId && p.Activa && p.Vehiculo.Placa == placaNormalizada,
-                cancellationToken);
+            .Where(p => p.Activa && EF.Property<string>(p.Vehiculo, "PlacaCanonica") == placaCanonica)
+            .Select(p => (int?)p.ClienteId)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public Task<int> ContarEmitidasEnRangoUtcAsync(DateTime inicioUtc, DateTime finUtc,
-        CancellationToken cancellationToken = default)
+    public async Task<long> ObtenerSiguienteCorrelativoAsync(CancellationToken cancellationToken = default)
     {
-        return _context.Polizas
-            .AsNoTracking()
-            .CountAsync(
-                p => p.FechaEmision >= inicioUtc && p.FechaEmision < finUtc,
-                cancellationToken);
+        DbConnection connection = _context.Database.GetDbConnection();
+        bool cerrarAlTerminar = connection.State != ConnectionState.Open;
+        if (cerrarAlTerminar)
+            await connection.OpenAsync(cancellationToken);
+
+        try
+        {
+            await using DbCommand command = connection.CreateCommand();
+            command.CommandText = "SELECT NEXT VALUE FOR [dbo].[SeqNumeroPoliza];";
+            command.Transaction = _context.Database.CurrentTransaction?.GetDbTransaction();
+            object? resultado = await command.ExecuteScalarAsync(cancellationToken);
+            return Convert.ToInt64(resultado);
+        }
+        finally
+        {
+            if (cerrarAlTerminar)
+                await connection.CloseAsync();
+        }
     }
 
     public async Task AgregarAsync(Poliza poliza, CancellationToken cancellationToken = default)
     {
         await _context.Polizas.AddAsync(poliza, cancellationToken);
-    }
-
-    public Task<bool> ExistePolizaActivaPorPlacaAsync(string placaNormalizada, CancellationToken cancellationToken = default)
-    {
-        return _context.Polizas
-            .AsNoTracking()
-            .AnyAsync(
-                p => p.Activa && p.Vehiculo.Placa == placaNormalizada,
-                cancellationToken);
     }
 }

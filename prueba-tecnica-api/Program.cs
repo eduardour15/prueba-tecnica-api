@@ -1,10 +1,33 @@
+using Microsoft.AspNetCore.Mvc;
 using PruebaTecnica.Api.Exceptions;
 using PruebaTecnica.Api.Extensions;
+using PruebaTecnica.Api.Helpers;
 using PruebaTecnica.Api.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            ValidationProblemDetails problemDetails = new(context.ModelState)
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Error de validación en los datos de entrada",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Uno o más campos de la solicitud contienen errores de validación.",
+                Instance = context.HttpContext.Request.Path
+            };
+            problemDetails.Extensions["correlationId"] =
+                CorrelationIdHelper.ObtenerDesdeHttpContext(context.HttpContext);
+
+            return new BadRequestObjectResult(problemDetails)
+            {
+                ContentTypes = { "application/problem+json", "application/json" }
+            };
+        };
+    });
 builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer((document, _, _) =>
@@ -16,7 +39,20 @@ builder.Services.AddOpenApi(options =>
     });
 });
 
-builder.Services.AddProblemDetails();
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = context =>
+    {
+        context.ProblemDetails.Extensions.TryAdd(
+            "correlationId",
+            CorrelationIdHelper.ObtenerDesdeHttpContext(context.HttpContext));
+        context.ProblemDetails.Instance ??= context.HttpContext.Request.Path;
+        if (context.ProblemDetails.Status is int status)
+        {
+            context.ProblemDetails.Type ??= $"https://httpstatuses.com/{status}";
+        }
+    };
+});
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 builder.Services.AddInfrastructureServices(builder.Configuration);

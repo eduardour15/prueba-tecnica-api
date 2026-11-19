@@ -1,4 +1,3 @@
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PruebaTecnica.Api.DTOs.Clientes;
@@ -64,15 +63,18 @@ public class PolizaService : IPolizaService
             throw new ReglaNegocioException("La placa del vehículo es obligatoria y debe tener un formato válido.");
 
         var marcaLimpia = TextoValidacionHelper.Limpiar(request.Vehiculo.Marca);
-        if (marcaLimpia.Length is < 2 or > 60)
-            throw new ReglaNegocioException("La marca del vehículo debe tener entre 2 y 60 caracteres reales.");
+        if (!TextoValidacionHelper.EsMarcaValida(marcaLimpia))
+            throw new ReglaNegocioException("La marca del vehículo debe tener entre 2 y 60 caracteres reales y contener letras válidas.");
 
         var modeloLimpio = TextoValidacionHelper.Limpiar(request.Vehiculo.Modelo);
-        if (modeloLimpio.Length is < 1 or > 60)
-            throw new ReglaNegocioException("El modelo del vehículo debe tener entre 1 y 60 caracteres reales.");
+        if (!TextoValidacionHelper.EsModeloValido(modeloLimpio))
+            throw new ReglaNegocioException("El modelo del vehículo debe tener entre 1 y 60 caracteres reales e iniciar con un carácter alfanumérico.");
 
         if (request.Vehiculo.ValorComercial <= 0m)
             throw new ReglaNegocioException("El valor comercial del vehículo debe ser mayor a cero.");
+
+        if (decimal.Round(request.Vehiculo.ValorComercial, 2) != request.Vehiculo.ValorComercial)
+            throw new ReglaNegocioException("El valor comercial del vehículo no puede tener más de 2 decimales.");
 
         //Validación de antigüedad y año máximo del vehículo
         var ahoraUtc = DateTime.UtcNow;
@@ -91,21 +93,16 @@ public class PolizaService : IPolizaService
         var cliente = await _clienteRepository.ObtenerPorIdSoloLecturaAsync(request.ClienteId, cancellationToken)
                       ?? throw new NoEncontradoException($"No se encontró el cliente con ID {request.ClienteId}.");
 
-        //Validar que el cliente no tenga ya una póliza activa para la misma placa
-        var existePolizaActiva = await _polizaRepository.ExistePolizaActivaPorClienteYPlacaAsync(
-            request.ClienteId,
+        //Validar que no exista ya una póliza activa para la misma placa
+        int? clienteIdPolizaActiva = await _polizaRepository.ObtenerClienteIdDePolizaActivaPorPlacaAsync(
             placaNormalizada,
             cancellationToken);
 
-        if (existePolizaActiva)
+        if (clienteIdPolizaActiva == request.ClienteId)
             throw new ConflictoException(
                 $"El cliente {request.ClienteId} ya posee una póliza activa para el vehículo con placa {placaNormalizada}.");
-        
-        bool existePolizaActivaEnPlaca = await _polizaRepository.ExistePolizaActivaPorPlacaAsync(
-            placaNormalizada,
-            cancellationToken);
 
-        if (existePolizaActivaEnPlaca)
+        if (clienteIdPolizaActiva.HasValue)
             throw new ConflictoException(
                 $"Ya existe una póliza activa para el vehículo con placa {placaNormalizada}.");
 
@@ -216,10 +213,18 @@ public class PolizaService : IPolizaService
         {
             await _unitOfWork.GuardarCambiosAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (EsViolacionUnicaSql(ex))
+        catch (DbUpdateException ex) when (SqlExceptionHelper.EsViolacionUnica(ex))
         {
             throw new ConflictoException(
                 $"Ya existe una operación o póliza activa registrada para la placa {placaNormalizada}.");
+        }
+        catch (DbUpdateException ex) when (SqlExceptionHelper.EsViolacionClaveForanea(ex))
+        {
+            bool clienteExiste = await _clienteRepository.ExisteAsync(request.ClienteId, cancellationToken);
+            if (!clienteExiste)
+                throw new NoEncontradoException($"No se encontró el cliente con ID {request.ClienteId}.");
+
+            throw new ConflictoException("No se pudo emitir la póliza por un conflicto de integridad referencial.");
         }
 
         _logger.LogInformation(
@@ -281,7 +286,14 @@ public class PolizaService : IPolizaService
         };
 
         await _bitacoraRepository.RegistrarAsync(bitacora, cancellationToken);
-        await _unitOfWork.GuardarCambiosAsync(cancellationToken);
+        try
+        {
+            await _unitOfWork.GuardarCambiosAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ConflictoException($"La póliza {poliza.NumeroPoliza} ya se encuentra anulada.");
+        }
 
         _logger.LogInformation(
             "Póliza {NumeroPoliza} (Id {PolizaId}) anulada exitosamente",
@@ -291,13 +303,7 @@ public class PolizaService : IPolizaService
 
     private async Task<string> GenerarNumeroPolizaAsync(DateTime fechaUtc, CancellationToken cancellationToken)
     {
-        DateTime inicioDiaUtc = fechaUtc.Date;
-        DateTime finDiaUtc = inicioDiaUtc.AddDays(1);
-
-        int cantidadHoy = await _polizaRepository.ContarEmitidasEnRangoUtcAsync(
-            inicioDiaUtc,
-            finDiaUtc,
-            cancellationToken);
+        long correlativo = await _polizaRepository.ObtenerSiguienteCorrelativoAsync(cancellationToken);
 
         string prefijo = TextoValidacionHelper.Limpiar(_settings.PrefijoNumeroPoliza).ToUpperInvariant();
         if (string.IsNullOrEmpty(prefijo))
@@ -309,7 +315,6 @@ public class PolizaService : IPolizaService
             prefijo = prefijo[..6];
         }
 
-        int correlativo = cantidadHoy + 1;
         string sufijoUnico = Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
         string numero = $"{prefijo}-{fechaUtc:yyyyMMdd}-{correlativo:D6}-{sufijoUnico}";
 
@@ -336,7 +341,7 @@ public class PolizaService : IPolizaService
                 poliza.Vehiculo.Marca,
                 poliza.Vehiculo.Modelo,
                 poliza.Vehiculo.Anio,
-                poliza.Vehiculo.ValorComercial),
+                poliza.SumaAsegurada),
             poliza.PolizaCoberturas
                 .Select(pc => new CoberturaAplicadaResponse(
                     pc.CoberturaId,
@@ -344,6 +349,4 @@ public class PolizaService : IPolizaService
                     pc.TasaAplicada))
                 .ToList());
     }
-    private static bool EsViolacionUnicaSql(DbUpdateException ex) =>
-        ex.InnerException is SqlException sqlEx && sqlEx.Number is 2601 or 2627;
 }

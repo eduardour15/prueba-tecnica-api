@@ -20,5 +20,14 @@ public class VehiculoConfiguration : IEntityTypeConfiguration<Vehiculo>
         builder.Property(v => v.ModificadoPor).HasMaxLength(100);
 
         builder.HasIndex(v => v.Placa).IsUnique();
+
+        builder.Property<string>("PlacaCanonica")
+            .IsRequired()
+            .HasMaxLength(15)
+            .HasComputedColumnSql("CAST(REPLACE([Placa], N'-', N'') AS nvarchar(15))", stored: true);
+
+        builder.HasIndex("PlacaCanonica")
+            .IsUnique()
+            .HasFilter(null);
     }
 }

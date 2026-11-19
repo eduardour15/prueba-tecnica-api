@@ -1,4 +1,3 @@
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using PruebaTecnica.Api.DTOs.Clientes;
 using PruebaTecnica.Api.Entities;
@@ -91,7 +90,7 @@ public class ClienteService : IClienteService
         {
             await _unitOfWork.GuardarCambiosAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (EsViolacionUnicaSql(ex))
+        catch (DbUpdateException ex) when (SqlExceptionHelper.EsViolacionUnica(ex))
         {
             throw new ConflictoException(
                 $"Ya existe un cliente registrado con la identificación {identificacionNormalizada}.");
@@ -143,7 +142,11 @@ public class ClienteService : IClienteService
         {
             await _unitOfWork.GuardarCambiosAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (EsViolacionUnicaSql(ex))
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new NoEncontradoException($"No se encontró el cliente con ID {id}.");
+        }
+        catch (DbUpdateException ex) when (SqlExceptionHelper.EsViolacionUnica(ex))
         {
             throw new ConflictoException(
                 $"Ya existe un cliente registrado con la identificación {identificacionNormalizada}.");
@@ -178,7 +181,18 @@ public class ClienteService : IClienteService
         };
 
         await _bitacoraRepository.RegistrarAsync(bitacora, cancellationToken);
-        await _unitOfWork.GuardarCambiosAsync(cancellationToken);
+        try
+        {
+            await _unitOfWork.GuardarCambiosAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new NoEncontradoException($"No se encontró el cliente con ID {id}.");
+        }
+        catch (DbUpdateException ex) when (SqlExceptionHelper.EsViolacionClaveForanea(ex))
+        {
+            throw new ConflictoException($"No se puede eliminar el cliente {id} porque tiene pólizas asociadas.");
+        }
 
         _logger.LogInformation("Cliente {ClienteId} eliminado exitosamente", id);
     }
@@ -194,12 +208,12 @@ public class ClienteService : IClienteService
         string? correo)
     {
         var nombreLimpio = TextoValidacionHelper.Limpiar(nombre);
-        if (nombreLimpio.Length is < 2 or > 150)
-            throw new ReglaNegocioException("El nombre debe tener entre 2 y 150 caracteres reales.");
+        if (!TextoValidacionHelper.EsNombreValido(nombreLimpio))
+            throw new ReglaNegocioException("El nombre debe tener entre 2 y 150 caracteres reales, iniciar con letra y contener al menos 2 letras.");
 
         var identificacionNormalizada = TextoValidacionHelper.Limpiar(identificacion).ToUpperInvariant();
-        if (identificacionNormalizada.Length is < 5 or > 30)
-            throw new ReglaNegocioException("La identificación debe tener entre 5 y 30 caracteres reales.");
+        if (!TextoValidacionHelper.EsIdentificacionValida(identificacionNormalizada))
+            throw new ReglaNegocioException("La identificación debe tener entre 5 y 30 caracteres alfanuméricos válidos.");
 
         var correoLimpio = TextoValidacionHelper.Limpiar(correo).ToLowerInvariant();
         if (!TextoValidacionHelper.EsCorreoValido(correoLimpio))
@@ -207,6 +221,4 @@ public class ClienteService : IClienteService
 
         return (nombreLimpio, identificacionNormalizada, correoLimpio);
     }
-    private static bool EsViolacionUnicaSql(DbUpdateException ex) =>
-        ex.InnerException is SqlException sqlEx && sqlEx.Number is 2601 or 2627;
 }

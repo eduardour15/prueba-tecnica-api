@@ -26,15 +26,15 @@ public record VehiculoRequest(
                 [nameof(Placa)]);
 
         var marcaLimpia = TextoValidacionHelper.Limpiar(Marca);
-        if (marcaLimpia.Length is < 2 or > 60)
+        if (!TextoValidacionHelper.EsMarcaValida(marcaLimpia))
             yield return new ValidationResult(
-                "La marca debe tener entre 2 y 60 caracteres reales.",
+                "La marca debe tener entre 2 y 60 caracteres reales y contener letras válidas.",
                 [nameof(Marca)]);
 
         var modeloLimpio = TextoValidacionHelper.Limpiar(Modelo);
-        if (modeloLimpio.Length is < 1 or > 60)
+        if (!TextoValidacionHelper.EsModeloValido(modeloLimpio))
             yield return new ValidationResult(
-                "El modelo debe tener entre 1 y 60 caracteres reales.",
+                "El modelo debe tener entre 1 y 60 caracteres reales e iniciar con un carácter alfanumérico.",
                 [nameof(Modelo)]);
         if (Anio is < 1900 or > 2100)
             yield return new ValidationResult(
@@ -44,6 +44,10 @@ public record VehiculoRequest(
         if (ValorComercial <= 0m)
             yield return new ValidationResult(
                 "El valor comercial debe ser mayor a 0.",
+                [nameof(ValorComercial)]);
+        else if (decimal.Round(ValorComercial, 2) != ValorComercial)
+            yield return new ValidationResult(
+                "El valor comercial no puede tener más de 2 decimales.",
                 [nameof(ValorComercial)]);
     }
 }

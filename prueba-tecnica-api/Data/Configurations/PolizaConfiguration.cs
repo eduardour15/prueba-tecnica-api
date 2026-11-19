@@ -14,6 +14,7 @@ public class PolizaConfiguration : IEntityTypeConfiguration<Poliza>
         builder.Property(p => p.NumeroPoliza).IsRequired().HasMaxLength(30);
         builder.Property(p => p.SumaAsegurada).HasPrecision(18, 2);
         builder.Property(p => p.PrimaTotal).HasPrecision(18, 2);
+        builder.Property(p => p.Activa).IsConcurrencyToken();
 
         builder.Property(p => p.CreadoPor).IsRequired().HasMaxLength(100);
         builder.Property(p => p.ModificadoPor).HasMaxLength(100);

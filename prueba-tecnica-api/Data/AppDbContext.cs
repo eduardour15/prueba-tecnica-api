@@ -20,5 +20,8 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+        modelBuilder.HasSequence<long>("SeqNumeroPoliza")
+            .StartsAt(1)
+            .IncrementsBy(1);
     }
 }

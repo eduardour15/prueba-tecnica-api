@@ -1,13 +1,12 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using PruebaTecnica.Api.Helpers;
 
 namespace PruebaTecnica.Api.Exceptions;
 
 public class GlobalExceptionHandler : IExceptionHandler
 {
-    private const string HeaderCorrelationId = "X-Correlation-Id";
     private readonly ILogger<GlobalExceptionHandler> _logger;
 
     public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
@@ -20,10 +19,7 @@ public class GlobalExceptionHandler : IExceptionHandler
         Exception exception,
         CancellationToken cancellationToken)
     {
-        var correlationId = httpContext.Items.TryGetValue(HeaderCorrelationId, out var valor)
-                            && valor is string id
-            ? id
-            : httpContext.TraceIdentifier;
+        var correlationId = CorrelationIdHelper.ObtenerDesdeHttpContext(httpContext);
 
         var (statusCode, title, detail) = exception switch
         {
@@ -41,10 +37,18 @@ public class GlobalExceptionHandler : IExceptionHandler
                 StatusCodes.Status409Conflict,
                 "Conflicto con el estado del recurso",
                 exception.Message),
-            DbUpdateException dbEx when dbEx.InnerException is SqlException sqlEx && sqlEx.Number is 2601 or 2627 => (
+            DbUpdateConcurrencyException => (
+                StatusCodes.Status409Conflict,
+                "Conflicto de concurrencia",
+                "El recurso fue modificado o eliminado concurrentemente por otra operación."),
+            DbUpdateException dbEx when SqlExceptionHelper.EsViolacionUnica(dbEx) => (
                 StatusCodes.Status409Conflict,
                 "Conflicto con el estado del recurso",
                 "Ya existe un registro activo con los datos únicos proporcionados."),
+            DbUpdateException dbEx when SqlExceptionHelper.EsViolacionClaveForanea(dbEx) => (
+                StatusCodes.Status409Conflict,
+                "Conflicto con el estado del recurso",
+                "La operación no puede completarse debido a una restricción de integridad referencial."),
             _ => (
                 StatusCodes.Status500InternalServerError,
                 "Error interno del servidor",

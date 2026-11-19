@@ -1,4 +1,8 @@
-﻿IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+﻿SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
 BEGIN
     CREATE TABLE [__EFMigrationsHistory] (
         [MigrationId] nvarchar(150) NOT NULL,
@@ -288,6 +292,43 @@ IF NOT EXISTS (
 BEGIN
     INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
     VALUES (N'20261119022745_EliminarIndiceRedundantePoliza', N'10.0.15');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261119142959_CorregirUnicidadPlacaYSecuenciaPoliza'
+)
+BEGIN
+    CREATE SEQUENCE [SeqNumeroPoliza] START WITH 1 INCREMENT BY 1 NO CYCLE;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261119142959_CorregirUnicidadPlacaYSecuenciaPoliza'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [Vehiculos] ADD [PlacaCanonica] AS CAST(REPLACE([Placa], N''-'', N'''') AS nvarchar(15)) PERSISTED');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261119142959_CorregirUnicidadPlacaYSecuenciaPoliza'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Vehiculos_PlacaCanonica] ON [Vehiculos] ([PlacaCanonica]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261119142959_CorregirUnicidadPlacaYSecuenciaPoliza'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261119142959_CorregirUnicidadPlacaYSecuenciaPoliza', N'10.0.15');
 END;
 
 COMMIT;
