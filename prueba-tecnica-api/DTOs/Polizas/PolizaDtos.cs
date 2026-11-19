@@ -36,6 +36,15 @@ public record VehiculoRequest(
             yield return new ValidationResult(
                 "El modelo debe tener entre 1 y 60 caracteres reales.",
                 [nameof(Modelo)]);
+        if (Anio is < 1900 or > 2100)
+            yield return new ValidationResult(
+                "El año del vehículo debe estar entre 1900 y 2100.",
+                [nameof(Anio)]);
+
+        if (ValorComercial <= 0m)
+            yield return new ValidationResult(
+                "El valor comercial debe ser mayor a 0.",
+                [nameof(ValorComercial)]);
     }
 }
 
@@ -50,7 +59,25 @@ public record EmitirPolizaRequest(
 {
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (CoberturaIds is not null && CoberturaIds.Any(id => id <= 0))
+        if (ClienteId <= 0)
+            yield return new ValidationResult(
+                "El ClienteId debe ser mayor a 0.",
+                [nameof(ClienteId)]);
+
+        if (Vehiculo is null)
+            yield return new ValidationResult(
+                "Los datos del vehículo son obligatorios.",
+                [nameof(Vehiculo)]);
+
+        if (CoberturaIds is null || CoberturaIds.Count == 0)
+        {
+            yield return new ValidationResult(
+                "Debe seleccionar al menos una cobertura.",
+                [nameof(CoberturaIds)]);
+            yield break;
+        }
+
+        if (CoberturaIds.Any(id => id <= 0))
             yield return new ValidationResult(
                 "Todos los IDs de cobertura deben ser mayores a cero.",
                 [nameof(CoberturaIds)]);

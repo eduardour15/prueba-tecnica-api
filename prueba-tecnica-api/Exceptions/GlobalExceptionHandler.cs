@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 
 namespace PruebaTecnica.Api.Exceptions;
 
@@ -39,7 +41,10 @@ public class GlobalExceptionHandler : IExceptionHandler
                 StatusCodes.Status409Conflict,
                 "Conflicto con el estado del recurso",
                 exception.Message),
-
+            DbUpdateException dbEx when dbEx.InnerException is SqlException sqlEx && sqlEx.Number is 2601 or 2627 => (
+                StatusCodes.Status409Conflict,
+                "Conflicto con el estado del recurso",
+                "Ya existe un registro activo con los datos únicos proporcionados."),
             _ => (
                 StatusCodes.Status500InternalServerError,
                 "Error interno del servidor",

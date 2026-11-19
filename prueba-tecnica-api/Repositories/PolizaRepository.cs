@@ -67,4 +67,13 @@ public class PolizaRepository : IPolizaRepository
     {
         await _context.Polizas.AddAsync(poliza, cancellationToken);
     }
+
+    public Task<bool> ExistePolizaActivaPorPlacaAsync(string placaNormalizada, CancellationToken cancellationToken = default)
+    {
+        return _context.Polizas
+            .AsNoTracking()
+            .AnyAsync(
+                p => p.Activa && p.Vehiculo.Placa == placaNormalizada,
+                cancellationToken);
+    }
 }

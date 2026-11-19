@@ -258,12 +258,12 @@ namespace PruebaTecnica.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClienteId");
+
                     b.HasIndex("NumeroPoliza")
                         .IsUnique();
 
-                    b.HasIndex("VehiculoId");
-
-                    b.HasIndex("ClienteId", "VehiculoId")
+                    b.HasIndex("VehiculoId")
                         .IsUnique()
                         .HasFilter("[Activa] = 1");
 

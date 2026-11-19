@@ -21,7 +21,7 @@ public class PolizaConfiguration : IEntityTypeConfiguration<Poliza>
         builder.HasIndex(p => p.NumeroPoliza).IsUnique();
 
         // un cliente solo puede tener 1 póliza activa por vehículo
-        builder.HasIndex(p => new { p.ClienteId, p.VehiculoId })
+        builder.HasIndex(p => p.VehiculoId)
             .IsUnique()
             .HasFilter("[Activa] = 1");
 

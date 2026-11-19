@@ -1,3 +1,5 @@
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using PruebaTecnica.Api.DTOs.Clientes;
 using PruebaTecnica.Api.Entities;
 using PruebaTecnica.Api.Exceptions;
@@ -84,7 +86,16 @@ public class ClienteService : IClienteService
         };
 
         await _bitacoraRepository.RegistrarAsync(bitacora, cancellationToken);
-        await _unitOfWork.GuardarCambiosAsync(cancellationToken);
+        
+        try
+        {
+            await _unitOfWork.GuardarCambiosAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (EsViolacionUnicaSql(ex))
+        {
+            throw new ConflictoException(
+                $"Ya existe un cliente registrado con la identificación {identificacionNormalizada}.");
+        }
 
         _logger.LogInformation("Cliente {ClienteId} creado exitosamente", cliente.Id);
 
@@ -96,7 +107,7 @@ public class ClienteService : IClienteService
         ActualizarClienteRequest request,
         CancellationToken cancellationToken = default)
     {
-        if (request is null) throw new ReglaNegocioException("La solicitud de creación de cliente no puede ser nula.");
+        if (request is null) throw new ReglaNegocioException("La solicitud de actualización de cliente no puede ser nula.");
         var (nombreLimpio, identificacionNormalizada, correoLimpio) =
             ValidarYSanitizarDatosCliente(request.Nombre, request.Identificacion, request.Correo);
 
@@ -128,7 +139,15 @@ public class ClienteService : IClienteService
         };
 
         await _bitacoraRepository.RegistrarAsync(bitacora, cancellationToken);
-        await _unitOfWork.GuardarCambiosAsync(cancellationToken);
+        try
+        {
+            await _unitOfWork.GuardarCambiosAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (EsViolacionUnicaSql(ex))
+        {
+            throw new ConflictoException(
+                $"Ya existe un cliente registrado con la identificación {identificacionNormalizada}.");
+        }
 
         _logger.LogInformation("Cliente {ClienteId} actualizado exitosamente", cliente.Id);
 
@@ -188,4 +207,6 @@ public class ClienteService : IClienteService
 
         return (nombreLimpio, identificacionNormalizada, correoLimpio);
     }
+    private static bool EsViolacionUnicaSql(DbUpdateException ex) =>
+        ex.InnerException is SqlException sqlEx && sqlEx.Number is 2601 or 2627;
 }

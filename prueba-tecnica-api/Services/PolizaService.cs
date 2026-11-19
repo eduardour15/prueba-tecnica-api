@@ -1,3 +1,5 @@
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PruebaTecnica.Api.DTOs.Clientes;
 using PruebaTecnica.Api.DTOs.Polizas;
@@ -98,6 +100,14 @@ public class PolizaService : IPolizaService
         if (existePolizaActiva)
             throw new ConflictoException(
                 $"El cliente {request.ClienteId} ya posee una póliza activa para el vehículo con placa {placaNormalizada}.");
+        
+        bool existePolizaActivaEnPlaca = await _polizaRepository.ExistePolizaActivaPorPlacaAsync(
+            placaNormalizada,
+            cancellationToken);
+
+        if (existePolizaActivaEnPlaca)
+            throw new ConflictoException(
+                $"Ya existe una póliza activa para el vehículo con placa {placaNormalizada}.");
 
         //Validar y obtener coberturas seleccionadas
         var coberturaIdsUnicos = request.CoberturaIds.Distinct().ToList();
@@ -148,6 +158,8 @@ public class PolizaService : IPolizaService
                 throw new ConflictoException(
                     $"La placa {placaNormalizada} ya se encuentra registrada para otro vehículo ({vehiculo.Marca} {vehiculo.Modelo} {vehiculo.Anio}).");
             }
+
+            vehiculo.ValorComercial = request.Vehiculo.ValorComercial;
         }
 
         //Cálculos financieros y número único exclusivamente en el servidor
@@ -199,7 +211,16 @@ public class PolizaService : IPolizaService
         };
 
         await _bitacoraRepository.RegistrarAsync(bitacora, cancellationToken);
-        await _unitOfWork.GuardarCambiosAsync(cancellationToken);
+        
+        try
+        {
+            await _unitOfWork.GuardarCambiosAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (EsViolacionUnicaSql(ex))
+        {
+            throw new ConflictoException(
+                $"Ya existe una operación o póliza activa registrada para la placa {placaNormalizada}.");
+        }
 
         _logger.LogInformation(
             "Póliza {NumeroPoliza} emitida exitosamente para ClienteId {ClienteId} con PrimaTotal {PrimaTotal}",
@@ -289,7 +310,7 @@ public class PolizaService : IPolizaService
         }
 
         int correlativo = cantidadHoy + 1;
-        string sufijoUnico = Guid.NewGuid().ToString("N")[..4].ToUpperInvariant();
+        string sufijoUnico = Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
         string numero = $"{prefijo}-{fechaUtc:yyyyMMdd}-{correlativo:D6}-{sufijoUnico}";
 
         return numero.Length <= 30 ? numero : numero[..30];
@@ -323,4 +344,6 @@ public class PolizaService : IPolizaService
                     pc.TasaAplicada))
                 .ToList());
     }
+    private static bool EsViolacionUnicaSql(DbUpdateException ex) =>
+        ex.InnerException is SqlException sqlEx && sqlEx.Number is 2601 or 2627;
 }

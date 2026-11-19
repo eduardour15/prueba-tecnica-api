@@ -10,4 +10,5 @@ public interface IPolizaRepository
     Task<bool> ExistePolizaActivaPorClienteYPlacaAsync(int clienteId, string placaNormalizada, CancellationToken cancellationToken = default);
     Task<int> ContarEmitidasEnRangoUtcAsync(DateTime inicioUtc, DateTime finUtc, CancellationToken cancellationToken = default);
     Task AgregarAsync(Poliza poliza, CancellationToken cancellationToken = default);
+    Task<bool> ExistePolizaActivaPorPlacaAsync(string placaNormalizada, CancellationToken cancellationToken = default);
 }
